@@ -397,9 +397,9 @@ func resourceProductTypeUpdate(d *schema.ResourceData, m interface{}) error {
 	}
 
 	if d.HasChange("attribute") {
-		old, new := d.GetChange("attribute")
+		old, newAttribute := d.GetChange("attribute")
 		attributeChangeActions, err := resourceProductTypeAttributeChangeActions(
-			old.([]interface{}), new.([]interface{}))
+			old.([]interface{}), newAttribute.([]interface{}))
 		if err != nil {
 			return err
 		}
@@ -522,36 +522,19 @@ func resourceProductTypeAttributeChangeActions(oldValues []interface{}, newValue
 
 		newFieldType := attrDef.Type
 		oldFieldType := oldV["type"].([]interface{})[0].(map[string]interface{})
-		oldEnumKeys := make(map[string]interface{})
-		newEnumKeys := make(map[string]interface{})
 
-		actions = handleEnumTypeChanges(newFieldType, oldFieldType, newEnumKeys, actions, name, oldEnumKeys)
+		actions = handlePlainEnumTypeChanges(newFieldType, oldFieldType, actions, name)
+		actions = handleLocalizedEnumTypeChanges(newFieldType, oldFieldType, actions, name)
 
 		if enumType, ok := newFieldType.(commercetools.AttributeSetType); ok {
 
 			myOldFieldType := oldFieldType["element_type"].([]interface{})[0].(map[string]interface{})
-			actions = handleEnumTypeChanges(enumType.ElementType, myOldFieldType, newEnumKeys, actions, name, oldEnumKeys)
+			actions = handlePlainEnumTypeChanges(newFieldType, oldFieldType, actions, name)
+			actions = handleLocalizedEnumTypeChanges(enumType.ElementType, myOldFieldType, actions, name)
 
 			log.Printf("[DEBUG] Set detected: %s", name)
 			log.Print(len(myOldFieldType))
 		}
-
-		removeEnumKeys := []string{}
-		for key := range oldEnumKeys {
-			if _, ok := newEnumKeys[key]; !ok {
-				removeEnumKeys = append(removeEnumKeys, key)
-			}
-		}
-
-		if len(removeEnumKeys) > 0 {
-			actions = append(
-				actions,
-				commercetools.ProductTypeRemoveEnumValuesAction{
-					AttributeName: name,
-					Keys:          removeEnumKeys,
-				})
-		}
-
 	}
 
 	oldNames := make([]string, len(oldValues))
@@ -579,12 +562,38 @@ func resourceProductTypeAttributeChangeActions(oldValues []interface{}, newValue
 	return actions, nil
 }
 
-func handleEnumTypeChanges(newFieldType commercetools.AttributeType, oldFieldType map[string]interface{}, newEnumKeys map[string]interface{}, actions []commercetools.ProductTypeUpdateAction, name string, oldEnumKeys map[string]interface{}) []commercetools.ProductTypeUpdateAction {
+func removeEnumValues(oldEnumKeys []map[string]interface{}, newEnumKeys []commercetools.AttributeLocalizedEnumValue, name string) *commercetools.ProductTypeRemoveEnumValuesAction {
+	var removeEnumKeys []string
+	for _, value := range oldEnumKeys {
+
+		idx := -1
+
+		for key, newValue := range newEnumKeys {
+			if newValue.Key == value["key"] {
+				idx = key
+				break
+			}
+		}
+
+		if idx == -1 {
+			removeEnumKeys = append(removeEnumKeys, value["key"].(string))
+		}
+	}
+
+	if len(removeEnumKeys) > 0 {
+		return &commercetools.ProductTypeRemoveEnumValuesAction{
+			AttributeName: name,
+			Keys:          removeEnumKeys,
+		}
+	}
+	return nil
+}
+
+func handlePlainEnumTypeChanges(newFieldType commercetools.AttributeType, oldFieldType map[string]interface{}, actions []commercetools.ProductTypeUpdateAction, name string) []commercetools.ProductTypeUpdateAction {
 	if enumType, ok := newFieldType.(commercetools.AttributeEnumType); ok {
 		oldEnumV := oldFieldType["values"].(map[string]interface{})
 
 		for i, enumValue := range enumType.Values {
-			newEnumKeys[enumValue.Key] = enumValue
 			if _, ok := oldEnumV[enumValue.Key]; !ok {
 				// Key does not appear in old enum values, so we'll add it
 				actions = append(
@@ -596,23 +605,39 @@ func handleEnumTypeChanges(newFieldType commercetools.AttributeType, oldFieldTyp
 			}
 		}
 
-		return actions
 		// Action: changePlainEnumValueOrder
 		// TODO: Change the order of EnumValues: https://docs.commercetools.com/http-api-projects-productTypes.html#change-the-order-of-enumvalues
 
 	}
 
+	return actions
+}
+
+func handleLocalizedEnumTypeChanges(newFieldType commercetools.AttributeType, oldFieldType map[string]interface{}, actions []commercetools.ProductTypeUpdateAction, name string) []commercetools.ProductTypeUpdateAction {
+	oldEnumKeys := make([]map[string]interface{}, 0)
+	newEnumKeys := make([]commercetools.AttributeLocalizedEnumValue, 0)
+	addRemoveEnumValue := false
 	if enumType, ok := newFieldType.(commercetools.AttributeLocalizedEnumType); ok {
 		oldEnumV := oldFieldType["localized_value"].([]interface{})
 
 		for _, value := range oldEnumV {
-			v := value.(map[string]interface{})
-			oldEnumKeys[v["key"].(string)] = v
+			oldEnumKeys = append(oldEnumKeys, value.(map[string]interface{}))
 		}
 
 		for i, enumValue := range enumType.Values {
-			newEnumKeys[enumValue.Key] = enumValue
-			if _, ok := oldEnumKeys[enumValue.Key]; !ok {
+			newEnumKeys = append(newEnumKeys, enumValue)
+
+			idx := -1
+
+			for key, value := range oldEnumKeys {
+				if value["key"].(string) == enumValue.Key {
+					idx = key
+					break
+				}
+			}
+
+			if idx == -1 {
+				addRemoveEnumValue = true
 				// Key does not appear in old enum values, so we'll add it
 				actions = append(
 					actions,
@@ -621,9 +646,7 @@ func handleEnumTypeChanges(newFieldType commercetools.AttributeType, oldFieldTyp
 						Value:         &enumType.Values[i],
 					})
 			} else {
-				oldEnumValue := oldEnumKeys[enumValue.Key].(map[string]interface{})
-				oldLocalizedLabel := oldEnumValue["label"].(map[string]interface{})
-				labelChanged := !localizedStringCompare(*enumValue.Label, oldLocalizedLabel)
+				labelChanged := !localizedStringCompare(*enumValue.Label, oldEnumKeys[idx]["label"].(map[string]interface{}))
 				if labelChanged {
 					actions = append(
 						actions,
@@ -635,11 +658,47 @@ func handleEnumTypeChanges(newFieldType commercetools.AttributeType, oldFieldTyp
 			}
 		}
 
+		action := removeEnumValues(oldEnumKeys, newEnumKeys, name)
+
+		if action != nil {
+			addRemoveEnumValue = true
+			actions = append(actions, action)
+		}
+
+		//if we remove enum values from the list and add at the same new ones, we should not try to change also the order at the same point
+		if addRemoveEnumValue {
+			return actions
+		}
+
+		listOfOldKeys := make([]string, 0)
+		listOfNewEnumKeys := make([]string, 0)
+
+		for _, value := range oldEnumKeys {
+			listOfOldKeys = append(listOfOldKeys, value["key"].(string))
+		}
+
+		for _, value := range newEnumKeys {
+			listOfNewEnumKeys = append(listOfNewEnumKeys, value.Key)
+		}
+
+		if len(listOfOldKeys) == len(listOfNewEnumKeys) && orderChanged(listOfNewEnumKeys, listOfOldKeys) {
+			actions = append(
+				actions,
+				commercetools.ProductTypeChangeLocalizedEnumValueOrderAction{Values: newFieldType.(commercetools.AttributeLocalizedEnumType).Values, AttributeName: name})
+		}
+
 		return actions
-		// Action: changeLocalizedEnumValueOrder
-		// TODO: Change the order of LocalizedEnumValues: https://docs.commercetools.com/http-api-projects-productTypes.html#change-the-order-of-localizedenumvalues
 	}
 	return actions
+}
+
+func orderChanged(a []string, b []string) bool {
+	for i, v := range a {
+		if v != b[i] {
+			return true
+		}
+	}
+	return false
 }
 
 func resourceProductTypeGetAttributeDefinitions(d *schema.ResourceData) ([]commercetools.AttributeDefinitionDraft, error) {
