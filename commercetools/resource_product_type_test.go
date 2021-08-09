@@ -127,7 +127,7 @@ func TestAccProductTypes_basic(t *testing.T) {
 						"commercetools_product_type.acctest_product_type", "description", "All things related shipping",
 					),
 					resource.TestCheckResourceAttr(
-						"commercetools_product_type.acctest_product_type", "attribute.#", "3",
+						"commercetools_product_type.acctest_product_type", "attribute.#", "4",
 					),
 					resource.TestCheckResourceAttr(
 						"commercetools_product_type.acctest_product_type", "attribute.0.name", "location",
@@ -168,7 +168,7 @@ func TestAccProductTypes_basic(t *testing.T) {
 						"commercetools_product_type.acctest_product_type", "description", "All things related shipping",
 					),
 					resource.TestCheckResourceAttr(
-						"commercetools_product_type.acctest_product_type", "attribute.#", "3",
+						"commercetools_product_type.acctest_product_type", "attribute.#", "4",
 					),
 					resource.TestCheckResourceAttr(
 						"commercetools_product_type.acctest_product_type", "attribute.0.name", "location",
@@ -275,6 +275,35 @@ resource "commercetools_product_type" "acctest_product_type" {
 		}
 	}
 
+	attribute {
+		label      = {
+			"de-DE" = "Maßeinheit"
+			"en"    = "Unit"
+		}
+		name       = "unit"
+		type {
+			name = "lenum"
+            
+			localized_value {
+			  key = "ml"
+
+			  label = {
+				en = "ml"
+				nl = "ml"
+			  }
+			}
+
+			localized_value {
+			  key = "cm"
+
+			  label = {
+				en = "cm"
+				nl = "cm"
+			  }
+			}
+		}
+	}
+
 }`, name)
 }
 
@@ -343,6 +372,35 @@ resource "commercetools_product_type" "acctest_product_type" {
 					en = "Lunch"
 				  }
 				}
+			}
+		}
+	}
+
+	attribute {
+		label      = {
+			"de-DE" = "Maßeinheit"
+			"en"    = "Unit"
+		}
+		name       = "unit"
+		type {
+			name = "lenum"
+            
+			localized_value {
+			  key = "cm"
+
+			  label = {
+				en = "cm"
+				nl = "cm"
+			  }
+			}
+
+			localized_value {
+			  key = "ml"
+
+			  label = {
+				en = "ml"
+				nl = "ml"
+			  }
 			}
 		}
 	}
