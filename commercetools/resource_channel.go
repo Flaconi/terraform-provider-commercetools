@@ -2,6 +2,8 @@ package commercetools
 
 import (
 	"context"
+	"encoding/json"
+	"fmt"
 	"time"
 
 	"github.com/hashicorp/terraform-plugin-sdk/v2/diag"
@@ -49,6 +51,36 @@ func resourceChannel() *schema.Resource {
 				Type:     schema.TypeInt,
 				Computed: true,
 			},
+			"custom": {
+				Type:     schema.TypeList,
+				MaxItems: 1,
+				Optional: true,
+				Elem: &schema.Resource{
+					Schema: map[string]*schema.Schema{
+						"type_key": {
+							Type:     schema.TypeString,
+							Required: true,
+						},
+						"field": {
+							Type:     schema.TypeList,
+							Optional: true,
+							Elem: &schema.Resource{
+								Schema: map[string]*schema.Schema{
+									"key": {
+										Type:     schema.TypeString,
+										Required: true,
+									},
+									"value": {
+										Type:        schema.TypeString,
+										Optional:    true,
+										Description: "The value of a custom field (https://docs.commercetools.com/api/projects/channels#set-customfield)",
+									},
+								},
+							},
+						},
+					},
+				},
+			},
 		},
 	}
 }
@@ -69,6 +101,16 @@ func resourceChannelCreate(ctx context.Context, d *schema.ResourceData, m interf
 		Description: &description,
 	}
 
+	//custom fields are set to be filled
+	if d.HasChange("custom") {
+		typeId, fields := getCustomFieldsData(d)
+
+		draft.Custom = &platform.CustomFieldsDraft{
+			Type:   *typeId,
+			Fields: fields,
+		}
+	}
+
 	client := getClient(m)
 	var channel *platform.Channel
 
@@ -87,8 +129,44 @@ func resourceChannelCreate(ctx context.Context, d *schema.ResourceData, m interf
 	}
 
 	d.SetId(channel.ID)
-	d.Set("version", channel.Version)
+	if err := d.Set("version", channel.Version); err != nil {
+		return diag.FromErr(err)
+	}
 	return resourceChannelRead(ctx, d, m)
+}
+
+func getCustomFieldsData(d *schema.ResourceData) (*platform.TypeResourceIdentifier, *platform.FieldContainer) {
+	custom := d.Get("custom").([]interface{})[0].(map[string]interface{})
+
+	typeKey := custom["type_key"].(string)
+
+	typeId := &platform.TypeResourceIdentifier{
+		Key: &typeKey,
+	}
+
+	fields := &platform.FieldContainer{}
+
+	for _, fieldDef := range custom["field"].([]interface{}) {
+		key := fieldDef.(map[string]interface{})["key"].(string)
+		value := fieldDef.(map[string]interface{})["value"].(string)
+		decodedValue := _decodeCustomFieldValue(value)
+
+		(*fields)[key] = decodedValue
+
+	}
+	return typeId, fields
+}
+
+func _decodeCustomFieldValue(value string) interface{} {
+	var data interface{}
+	_ = json.Unmarshal([]byte(value), &data)
+	return data
+}
+
+func _encodeCustomFieldValue(value interface{}) string {
+	data, _ := json.Marshal(value)
+
+	return string(data)
 }
 
 func resourceChannelRead(ctx context.Context, d *schema.ResourceData, m interface{}) diag.Diagnostics {
@@ -106,15 +184,45 @@ func resourceChannelRead(ctx context.Context, d *schema.ResourceData, m interfac
 	}
 
 	d.SetId(channel.ID)
-	d.Set("version", channel.Version)
+	if err := d.Set("version", channel.Version); err != nil {
+		return diag.FromErr(err)
+	}
 
 	if channel.Name != nil {
-		d.Set("name", *channel.Name)
+		if err := d.Set("name", *channel.Name); err != nil {
+			return diag.FromErr(err)
+		}
 	}
 	if channel.Description != nil {
-		d.Set("description", *channel.Description)
+		if err := d.Set("description", *channel.Description); err != nil {
+			return diag.FromErr(err)
+		}
 	}
-	d.Set("roles", channel.Roles)
+	if err := d.Set("roles", channel.Roles); err != nil {
+		return diag.FromErr(err)
+	}
+
+	if channel.Custom != nil {
+		data := _decodeCustomFieldValue(_encodeCustomFieldValue(channel.Custom.Fields))
+
+		customFields := make([]interface{}, 0)
+
+		for fieldKey, fieldValue := range data.(map[string]interface{}) {
+			customFields = append(customFields, map[string]interface{}{
+				"key":   fieldKey,
+				"value": _encodeCustomFieldValue(fieldValue),
+			})
+		}
+
+		customBase := []interface{}{map[string]interface{}{
+			"type_key": channel.Custom.Type.Obj.Key,
+			"field":    customFields,
+		}}
+
+		if err := d.Set("custom", customBase); err != nil {
+			return diag.FromErr(err)
+		}
+	}
 	return nil
 }
 
@@ -155,6 +263,14 @@ func resourceChannelUpdate(ctx context.Context, d *schema.ResourceData, m interf
 		input.Actions = append(
 			input.Actions,
 			&platform.ChannelSetRolesAction{Roles: roles})
+	}
+
+	if d.HasChange("custom") {
+		typeId, fields := getCustomFieldsData(d)
+
+		input.Actions = append(
+			input.Actions,
+			&platform.ChannelSetCustomTypeAction{Type: typeId, Fields: fields})
 	}
 
 	_, err := client.Channels().WithId(d.Id()).Post(input).Execute(ctx)
