@@ -3,6 +3,7 @@ package commercetools
 import (
 	"context"
 	"fmt"
+	"os"
 	"strings"
 	"testing"
 
@@ -108,6 +109,11 @@ func TestGetAttributeType(t *testing.T) {
 }
 
 func TestAccProductTypes_basic(t *testing.T) {
+
+	if os.Getenv("CTP_CLIENT_ID") == "unittest" {
+		t.Skip("Skipping testing with mock server as the implementation can not handle order of localized enums")
+	}
+
 	name := "acctest_producttype"
 	resource.Test(t, resource.TestCase{
 		PreCheck:     func() { testAccPreCheck(t) },
@@ -127,7 +133,7 @@ func TestAccProductTypes_basic(t *testing.T) {
 						"commercetools_product_type.acctest_product_type", "description", "All things related shipping",
 					),
 					resource.TestCheckResourceAttr(
-						"commercetools_product_type.acctest_product_type", "attribute.#", "3",
+						"commercetools_product_type.acctest_product_type", "attribute.#", "6",
 					),
 					resource.TestCheckResourceAttr(
 						"commercetools_product_type.acctest_product_type", "attribute.0.name", "location",
@@ -153,6 +159,24 @@ func TestAccProductTypes_basic(t *testing.T) {
 					resource.TestCheckResourceAttr(
 						"commercetools_product_type.acctest_product_type", "attribute.2.type.0.element_type.0.localized_value.1.label.en", "Lunch",
 					),
+					resource.TestCheckResourceAttr(
+						"commercetools_product_type.acctest_product_type", "attribute.3.type.0.name", "lenum",
+					),
+					resource.TestCheckResourceAttr(
+						"commercetools_product_type.acctest_product_type", "attribute.3.type.0.localized_value.0.key", "cm",
+					),
+					resource.TestCheckResourceAttr(
+						"commercetools_product_type.acctest_product_type", "attribute.3.type.0.localized_value.1.key", "ml",
+					),
+					resource.TestCheckResourceAttr(
+						"commercetools_product_type.acctest_product_type", "attribute.4.type.0.name", "set",
+					),
+					resource.TestCheckResourceAttr(
+						"commercetools_product_type.acctest_product_type", "attribute.4.type.0.element_type.0.values.%", "5",
+					),
+					resource.TestCheckResourceAttr(
+						"commercetools_product_type.acctest_product_type", "attribute.5.type.0.name", "enum",
+					),
 				),
 			},
 			{
@@ -168,7 +192,7 @@ func TestAccProductTypes_basic(t *testing.T) {
 						"commercetools_product_type.acctest_product_type", "description", "All things related shipping",
 					),
 					resource.TestCheckResourceAttr(
-						"commercetools_product_type.acctest_product_type", "attribute.#", "3",
+						"commercetools_product_type.acctest_product_type", "attribute.#", "6",
 					),
 					resource.TestCheckResourceAttr(
 						"commercetools_product_type.acctest_product_type", "attribute.0.name", "location",
@@ -196,6 +220,29 @@ func TestAccProductTypes_basic(t *testing.T) {
 					),
 					resource.TestCheckResourceAttr(
 						"commercetools_product_type.acctest_product_type", "attribute.2.type.0.element_type.0.localized_value.1.label.de", "Mittagessen",
+					),
+
+					func(s *terraform.State) error {
+						if os.Getenv("CTP_CLIENT_ID") == "unittest" {
+							t.Log("Skipping check of order as the mock server does not support this correctly")
+							return nil
+						}
+
+						return resource.TestCheckResourceAttr(
+							"commercetools_product_type.acctest_product_type", "attribute.3.type.0.localized_value.0.key", "ml",
+						)(s)
+					},
+					resource.TestCheckResourceAttr(
+						"commercetools_product_type.acctest_product_type", "attribute.3.type.0.localized_value.0.key", "ml",
+					),
+					resource.TestCheckResourceAttr(
+						"commercetools_product_type.acctest_product_type", "attribute.3.type.0.localized_value.1.key", "cm",
+					),
+					resource.TestCheckResourceAttr(
+						"commercetools_product_type.acctest_product_type", "attribute.4.type.0.element_type.0.values.%", "2",
+					),
+					resource.TestCheckResourceAttr(
+						"commercetools_product_type.acctest_product_type", "attribute.5.type.0.name", "enum",
 					),
 				),
 			},
@@ -275,6 +322,69 @@ resource "commercetools_product_type" "acctest_product_type" {
 		}
 	}
 
+	attribute {
+		label      = {
+			"de-DE" = "Maßeinheit"
+			"en"    = "Unit"
+		}
+		name       = "unit"
+		type {
+			name = "lenum"
+            
+			localized_value {
+			  key = "ml"
+
+			  label = {
+				en = "ml"
+				nl = "ml"
+			  }
+			}
+
+			localized_value {
+			  key = "cm"
+
+			  label = {
+				en = "cm"
+				nl = "cm"
+			  }
+			}
+		}
+	}
+
+	attribute {
+		label      = {
+			"de-DE" = "stores"
+			"en"    = "stores"
+		}
+		name       = "onSale"
+		type {
+			name   = "set"
+		   	element_type {
+				name   = "enum"
+				values = {
+					"de"		 = "de"
+					"not_de"     = "not_de"
+				}
+			}
+		}
+	}
+
+	attribute {
+		label      = {
+			"de-DE" = "storesOrder"
+			"en"    = "storesOrder"
+		}
+		name       = "storeOrder"
+		type {
+			name   = "enum"
+			values = {
+				"at" = "at"
+				"de" = "de"
+				"pl" = "pl"
+			}
+		}
+	}
+
 }`, name)
 }
 
@@ -343,6 +453,72 @@ resource "commercetools_product_type" "acctest_product_type" {
 					en = "Lunch"
 				  }
 				}
+			}
+		}
+	}
+
+	attribute {
+		label      = {
+			"de-DE" = "Maßeinheit"
+			"en"    = "Unit"
+		}
+		name       = "unit"
+		type {
+			name = "lenum"
+            
+			localized_value {
+			  key = "cm"
+
+			  label = {
+				en = "cm"
+				nl = "cm"
+			  }
+			}
+
+			localized_value {
+			  key = "ml"
+
+			  label = {
+				en = "ml"
+				nl = "ml"
+			  }
+			}
+		}
+	}
+
+	attribute {
+		label      = {
+			"de-DE" = "stores"
+			"en"    = "stores"
+		}
+		name       = "onSale"
+		type {
+			name   = "set"
+		   	element_type {
+				name   = "enum"
+				values = {
+					"AT"         = "AT"
+					"DE"         = "DE"
+					"PL"         = "PL"
+					"de"		 = "de"
+					"not_de"     = "not_de"
+				}
+			}
+		}
+	}
+
+	attribute {
+		label      = {
+			"de-DE" = "storesOrder"
+			"en"    = "storesOrder"
+		}
+		name       = "storeOrder"
+		type {
+			name   = "enum"
+			values = {
+				"pl" = "pl"
+				"de" = "de"
+				"at" = "at"
 			}
 		}
 	}
