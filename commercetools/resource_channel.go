@@ -172,7 +172,7 @@ func _encodeCustomFieldValue(value interface{}) string {
 
 func resourceChannelRead(ctx context.Context, d *schema.ResourceData, m interface{}) diag.Diagnostics {
 	client := getClient(m)
-	channel, err := client.Channels().WithId(d.Id()).Get().Execute(ctx)
+	channel, err := client.Channels().WithId(d.Id()).Get().Expand([]string{"custom.type"}).Execute(ctx)
 
 	if err != nil {
 		if ctErr, ok := err.(platform.ErrorResponse); ok {
