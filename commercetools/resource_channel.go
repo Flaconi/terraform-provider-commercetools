@@ -3,7 +3,6 @@ package commercetools
 import (
 	"context"
 	"encoding/json"
-	"fmt"
 	"time"
 
 	"github.com/hashicorp/terraform-plugin-sdk/v2/diag"
