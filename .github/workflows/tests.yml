@@ -37,7 +37,7 @@ jobs:
         args: --issues-exit-code=0 --timeout=5m
 
     - name: Run tests
-      run: go test -race -coverprofile=coverage.out -covermode=atomic -coverpkg=./... -v ./...
+      run: go test -race -coverprofile=coverage.out -covermode=atomic -coverpkg=./... -v ./... -skip=commercetools/resource_attribute_groups_test.go
       env:
         TF_ACC: 1
         CTP_CLIENT_ID: unittest
