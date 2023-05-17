@@ -80,6 +80,7 @@ func New(version string) func() *schema.Provider {
 				"commercetools_category":           resourceCategory(),
 				"commercetools_type":               resourceType(),
 				"commercetools_product_discount":   resourceProductDiscount(),
+				"commercetools_attribute_groups":   resourceAttributeGroups(),
 
 				// Following items are moved to new terraform-plugin-framework
 				// "commercetools_state":              resourceState(),
