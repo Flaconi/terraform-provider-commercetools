@@ -2,7 +2,7 @@ module github.com/labd/terraform-provider-commercetools
 
 go 1.26.1
 
-//replace github.com/labd/commercetools-go-sdk v1.5.1 => ../commercetools-go-sdk
+replace github.com/labd/commercetools-go-sdk => github.com/flaconi/commercetools-go-sdk v1.9.1-0.20260528081725-1b3c0129b310
 
 require (
 	github.com/elliotchance/orderedmap/v2 v2.7.0

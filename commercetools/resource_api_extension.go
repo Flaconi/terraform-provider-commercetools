@@ -113,6 +113,22 @@ func resourceAPIExtension() *schema.Resource {
 					},
 				},
 			},
+			"additional_context": {
+				Description: "Configures additional information included in the payload sent to the API Extension.",
+				Type:        schema.TypeList,
+				MaxItems:    1,
+				Optional:    true,
+				Elem: &schema.Resource{
+					Schema: map[string]*schema.Schema{
+						"include_old_resource": {
+							Description: "If true, the payload sent to the API Extension includes the state of the resource before the update. Only applies to Update actions.",
+							Type:        schema.TypeBool,
+							Optional:    true,
+							Default:     false,
+						},
+					},
+				},
+			},
 			"timeout_in_ms": {
 				Description: "Maximum time (in milliseconds) that the Extension can respond within. If no timeout is " +
 					"provided, the default value is used for all types of Extensions, including payment Extensions. " +
@@ -183,6 +199,10 @@ func resourceAPIExtensionCreate(ctx context.Context, d *schema.ResourceData, m a
 		draft.Key = key
 	}
 
+	if v := d.Get("additional_context").([]any); len(v) > 0 {
+		draft.AdditionalContext = expandExtensionAdditionalContext(v)
+	}
+
 	if err := validateExtensionDestination(draft); err != nil {
 		return diag.FromErr(err)
 	}
@@ -225,6 +245,7 @@ func resourceAPIExtensionRead(ctx context.Context, d *schema.ResourceData, m any
 	_ = d.Set("destination", flattenExtensionDestination(extension.Destination, d))
 	_ = d.Set("trigger", flattenExtensionTriggers(extension.Triggers))
 	_ = d.Set("timeout_in_ms", extension.TimeoutInMs)
+	_ = d.Set("additional_context", flattenExtensionAdditionalContext(extension.AdditionalContext))
 	return nil
 }
 
@@ -268,6 +289,20 @@ func resourceAPIExtensionUpdate(ctx context.Context, d *schema.ResourceData, m a
 		input.Actions = append(
 			input.Actions,
 			&platform.ExtensionSetTimeoutInMsAction{TimeoutInMs: &newTimeout})
+	}
+
+	if d.HasChange("additional_context") {
+		v := d.Get("additional_context").([]any)
+		var draft platform.ExtensionAdditionalContextDraft
+		if len(v) > 0 {
+			ac := expandExtensionAdditionalContext(v)
+			if ac != nil {
+				draft = *ac
+			}
+		}
+		input.Actions = append(
+			input.Actions,
+			&platform.ExtensionSetAdditionalContextAction{AdditionalContext: draft})
 	}
 
 	err := retry.RetryContext(ctx, 20*time.Second, func() *retry.RetryError {
@@ -472,6 +507,26 @@ func flattenExtensionTriggers(triggers []platform.ExtensionTrigger) []map[string
 	}
 
 	return result
+}
+
+func expandExtensionAdditionalContext(input []any) *platform.ExtensionAdditionalContextDraft {
+	if len(input) == 0 {
+		return nil
+	}
+	raw := input[0].(map[string]any)
+	includeOldResource := raw["include_old_resource"].(bool)
+	return &platform.ExtensionAdditionalContextDraft{
+		IncludeOldResource: &includeOldResource,
+	}
+}
+
+func flattenExtensionAdditionalContext(ac *platform.ExtensionAdditionalContext) []map[string]any {
+	if ac == nil {
+		return nil
+	}
+	return []map[string]any{{
+		"include_old_resource": ac.IncludeOldResource,
+	}}
 }
 
 func expandExtensionTriggers(d *schema.ResourceData) []platform.ExtensionTrigger {
