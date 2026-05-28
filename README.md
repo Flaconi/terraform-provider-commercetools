@@ -1,3 +1,10 @@
+# Attention
+
+This is a fork of https://github.com/labd/terraform-provider-commercetools maintained by Flaconi. It may contain changes that support Flaconi-specific use cases and could break for other users.
+
+**Unless you are a Flaconi engineer, use the upstream provider instead:**
+https://registry.terraform.io/providers/labd/commercetools/latest/
+
 # commercetools Terraform Provider
 
 [![Test status](https://github.com/labd/terraform-provider-commercetools/workflows/Run%20Tests/badge.svg)](https://github.com/labd/terraform-provider-commercetools/actions?query=workflow%3A%22Run+Tests%22)

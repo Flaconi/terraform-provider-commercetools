@@ -6,6 +6,13 @@ description: |-
 
 ---
 
+# Attention
+
+This is a fork of https://github.com/labd/terraform-provider-commercetools maintained by Flaconi. It may contain changes that support Flaconi-specific use cases and could break for other users.
+
+**Unless you are a Flaconi engineer, use the upstream provider instead:**
+https://registry.terraform.io/providers/labd/commercetools/latest/
+
 # commercetools provider
 
 ## Commercial support
